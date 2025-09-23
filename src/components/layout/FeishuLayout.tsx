@@ -11,6 +11,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChannelManager } from "@/components/channels/ChannelManager";
 import { DocumentManager } from "@/components/documents/DocumentManager";
 import { TaskManager } from "@/components/tasks/TaskManager";
+import { CalendarManager } from "@/components/calendar/CalendarManager";
 import { NotificationButton } from "@/components/notifications/NotificationButton";
 import { FileManager } from "@/components/files/FileManager";
 import { SearchButton } from "@/components/search/SearchButton";
@@ -385,6 +386,8 @@ export function FeishuLayout({ children }: FeishuLayoutProps) {
             <FileManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "tasks" && selectedWorkspace ? (
             <TaskManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "calendar" && selectedWorkspace ? (
+            <CalendarManager workspaceId={selectedWorkspace.id} />
           ) : (
             children
           )}

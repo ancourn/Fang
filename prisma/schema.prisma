@@ -41,6 +41,8 @@ model User {
   assignedTasks Task[] @relation("TaskAssignee")
   taskComments TaskComment[]
   taskActivities TaskActivity[]
+  createdEvents CalendarEvent[] @relation("CalendarEventCreator")
+  eventAttendances CalendarAttendee[]
 
   @@map("users")
 }
@@ -59,6 +61,8 @@ model Workspace {
   documents   Document[]
   files       File[]
   tasks       Task[]
+  calendarEvents CalendarEvent[]
+  meetingRooms MeetingRoom[]
 
   @@map("workspaces")
 }
@@ -94,6 +98,7 @@ model Channel {
   messages   Message[]
   documents  Document[]
   tasks      Task[]
+  calendarEvents CalendarEvent[]
 
   @@map("channels")
 }
@@ -323,6 +328,7 @@ model Task {
   comments   TaskComment[]
   activities TaskActivity[]
   labels     TaskLabel[]
+  calendarEvents CalendarEvent[]
 
   @@map("tasks")
 }
@@ -367,4 +373,126 @@ model TaskLabel {
   task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   @@map("task_labels")
+}
+
+// Calendar & Meeting System
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  allDay      Boolean  @default(false)
+  location    String?
+  meetingUrl  String?
+  type        String   @default("event") // event, meeting, reminder, deadline
+  status      String   @default("confirmed") // confirmed, tentative, cancelled
+  visibility  String   @default("public") // public, private, confidential
+  color       String   @default("#3b82f6") // Default blue color
+  workspaceId String
+  channelId   String?
+  taskId      String?
+  creatorId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel    Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  task       Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creator    User             @relation("CalendarEventCreator", fields: [creatorId], references: [id])
+  attendees  CalendarAttendee[]
+  reminders  CalendarReminder[]
+  recurring  CalendarRecurring?
+  roomBookings MeetingRoomBooking[]
+
+  @@map("calendar_events")
+}
+
+model CalendarAttendee {
+  id         String   @id @default(cuid())
+  eventId    String
+  userId     String
+  email      String?
+  status     String   @default("invited") // invited, accepted, declined, tentative
+  role       String   @default("attendee") // organizer, attendee, optional
+  respondedAt DateTime?
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("calendar_attendees")
+}
+
+model CalendarReminder {
+  id        String   @id @default(cuid())
+  eventId   String
+  minutesBefore Int    @default(15) // Minutes before event to remind
+  method    String   @default("notification") // notification, email, push
+  sent      Boolean  @default(false)
+  sentAt    DateTime?
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_reminders")
+}
+
+model CalendarRecurring {
+  id           String   @id @default(cuid())
+  eventId      String   @unique
+  frequency    String   // daily, weekly, monthly, yearly
+  interval     Int      @default(1) // Repeat every X intervals
+  until        DateTime? // End date for recurrence
+  count        Int?     // Number of occurrences
+  byDay        String?  // Comma-separated days (MO,TU,WE,TH,FR,SA,SU)
+  byMonth      Int?     // Month number (1-12)
+  byMonthDay   Int?     // Day of month (1-31)
+  exceptions   String?  // JSON array of exception dates
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_recurring")
+}
+
+// Meeting Room & Resource Management
+model MeetingRoom {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  capacity    Int?
+  equipment   String?  // JSON array of available equipment
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bookings   MeetingRoomBooking[]
+
+  @@map("meeting_rooms")
+}
+
+model MeetingRoomBooking {
+  id           String   @id @default(cuid())
+  roomId       String
+  eventId      String
+  startTime    DateTime
+  endTime      DateTime
+  status       String   @default("confirmed") // confirmed, cancelled
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  room  MeetingRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, eventId])
+  @@map("meeting_room_bookings")
 }
