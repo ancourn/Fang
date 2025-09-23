@@ -20,6 +20,7 @@ import {
   Edit3,
   MessageSquare
 } from "lucide-react";
+import { RichTextEditor } from "@/components/ui/RichTextEditor";
 import { DocumentPresenceIndicator } from "./DocumentPresenceIndicator";
 import { useSocket } from "@/hooks/useSocket";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,7 +65,6 @@ export function CollaborativeEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showUsers, setShowUsers] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { user } = useAuth();
   const socket = useSocket();
   const otClient = useRef<OTClient | null>(null);
@@ -187,21 +187,6 @@ export function CollaborativeEditor({
     // Update editing status
     setIsEditing(true);
     setTimeout(() => setIsEditing(false), 1000);
-  };
-
-  // Handle cursor position updates
-  const handleSelectionChange = () => {
-    if (!textareaRef.current || !socket || !user) return;
-
-    const textarea = textareaRef.current;
-    const start = textarea.selectionStart;
-    const lines = textarea.value.substring(0, start).split('\n');
-    const cursor = {
-      line: lines.length - 1,
-      ch: lines[lines.length - 1].length
-    };
-
-    socket.emit("cursor-update", { documentId, cursor });
   };
 
   // Save document
@@ -371,16 +356,12 @@ export function CollaborativeEditor({
         <div className="flex-1 p-6">
           <Card className="h-full">
             <CardContent className="p-0 h-full">
-              <textarea
-                ref={textareaRef}
+              <RichTextEditor
                 value={content}
-                onChange={(e) => handleContentChange(e.target.value)}
-                onSelect={handleSelectionChange}
-                onClick={handleSelectionChange}
-                onKeyUp={handleSelectionChange}
-                className="w-full h-full p-6 resize-none border-0 focus:outline-none font-mono text-sm"
+                onChange={handleContentChange}
                 placeholder="Start typing your document..."
-                style={{ minHeight: "500px" }}
+                minHeight="500px"
+                className="border-0 h-full"
               />
             </CardContent>
           </Card>

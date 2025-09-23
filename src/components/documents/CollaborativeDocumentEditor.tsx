@@ -83,6 +83,7 @@ export function CollaborativeDocumentEditor({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [showSidebar, setShowSidebar] = useState(false);
   const [activeTab, setActiveTab] = useState("editor");
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [collaborativeMode, setCollaborativeMode] = useState(true);
 
   const isEditing = !!document;
@@ -425,7 +426,7 @@ export function CollaborativeDocumentEditor({
             <div>
               <h4 className="text-sm font-medium mb-2">Quick Actions</h4>
               <div className="space-y-2">
-                <Button variant="outline" size="sm" className="w-full justify-start">
+                <Button variant="outline" size="sm" className="w-full justify-start" onClick={() => setShowShareDialog(true)}>
                   <Share className="h-4 w-4 mr-2" />
                   Share
                 </Button>
@@ -453,6 +454,17 @@ export function CollaborativeDocumentEditor({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Share Dialog */}
+      {document && (
+        <DocumentShareDialog
+          documentId={document.id}
+          documentTitle={title}
+          isOpen={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          canManage={document.userId === user?.id}
+        />
       )}
     </div>
   );

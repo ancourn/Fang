@@ -27,7 +27,8 @@ import {
   Lock,
   UserPlus,
   Search,
-  MoreHorizontal
+  MoreHorizontal,
+  Check
 } from "lucide-react";
 
 interface User {
@@ -42,8 +43,7 @@ interface Permission {
   userId: string;
   user: User;
   role: 'viewer' | 'editor' | 'owner';
-  grantedAt: Date;
-  grantedBy: string;
+  addedAt: Date;
 }
 
 interface DocumentShareDialogProps {
@@ -51,8 +51,7 @@ interface DocumentShareDialogProps {
   documentTitle: string;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  isOwner: boolean;
-  currentUserId: string;
+  canManage: boolean;
 }
 
 export function DocumentShareDialog({ 
@@ -60,22 +59,21 @@ export function DocumentShareDialog({
   documentTitle, 
   isOpen, 
   onOpenChange, 
-  isOwner,
-  currentUserId 
+  canManage 
 }: DocumentShareDialogProps) {
   const [permissions, setPermissions] = useState<Permission[]>([]);
-  const [shareLink, setShareLink] = useState<string>('');
-  const [linkPermission, setLinkPermission] = useState<'viewer' | 'editor' | 'none'>('none');
-  const [isPublic, setIsPublic] = useState(false);
+  const [linkSharing, setLinkSharing] = useState<'disabled' | 'view' | 'edit'>('disabled');
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviteRole, setInviteRole] = useState<'viewer' | 'editor'>('viewer');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchPermissions();
-      generateShareLink();
     }
   }, [isOpen, documentId]);
 
@@ -94,8 +92,7 @@ export function DocumentShareDialog({
             role: 'admin'
           },
           role: 'owner',
-          grantedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          grantedBy: 'user1'
+          addedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
         },
         {
           userId: 'user2',
@@ -107,8 +104,7 @@ export function DocumentShareDialog({
             role: 'member'
           },
           role: 'editor',
-          grantedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-          grantedBy: 'user1'
+          addedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
         },
         {
           userId: 'user3',
@@ -120,8 +116,7 @@ export function DocumentShareDialog({
             role: 'member'
           },
           role: 'viewer',
-          grantedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-          grantedBy: 'user1'
+          addedAt: new Date(Date.now() - 6 * 60 * 60 * 1000)
         }
       ];
       setPermissions(mockPermissions);
@@ -133,108 +128,78 @@ export function DocumentShareDialog({
     }
   };
 
-  const generateShareLink = () => {
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-    const link = `${baseUrl}/documents/${documentId}/shared`;
-    setShareLink(link);
-  };
-
-  const copyShareLink = async () => {
-    try {
-      await navigator.clipboard.writeText(shareLink);
-      // You could add a toast notification here
-    } catch (error) {
-      console.error('Failed to copy link:', error);
-    }
-  };
-
-  const searchUsers = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
+  const handleInviteUser = async () => {
+    if (!inviteEmail.trim()) {
+      setError('Please enter an email address');
       return;
     }
 
     try {
-      // Mock search results - in real implementation, this would search the database
-      const mockResults: User[] = [
-        {
-          id: 'user4',
-          name: 'David Wilson',
-          email: 'david@example.com',
-          role: 'member'
-        },
-        {
-          id: 'user5',
-          name: 'Emma Davis',
-          email: 'emma@example.com',
-          role: 'member'
-        }
-      ].filter(user => 
-        user.name.toLowerCase().includes(query.toLowerCase()) ||
-        user.email.toLowerCase().includes(query.toLowerCase())
-      );
+      setLoading(true);
+      setError('');
       
-      setSearchResults(mockResults);
+      // Mock API call - in real implementation, this would invite the user
+      const newUser: User = {
+        id: `user${Date.now()}`,
+        name: inviteEmail.split('@')[0],
+        email: inviteEmail,
+        role: 'member'
+      };
+
+      const newPermission: Permission = {
+        userId: newUser.id,
+        user: newUser,
+        role: inviteRole,
+        addedAt: new Date()
+      };
+
+      setPermissions(prev => [...prev, newPermission]);
+      setInviteEmail('');
+      setSuccess('User invited successfully');
+      
+      setTimeout(() => setSuccess(''), 3000);
     } catch (error) {
-      console.error('Failed to search users:', error);
+      console.error('Failed to invite user:', error);
+      setError('Failed to invite user');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const addPermission = async (userId: string, role: 'viewer' | 'editor') => {
+  const handleRemovePermission = async (userId: string) => {
     try {
-      // Mock API call - in real implementation, this would update the backend
-      const newUser = searchResults.find(u => u.id === userId);
-      if (newUser) {
-        const newPermission: Permission = {
-          userId,
-          user: newUser,
-          role,
-          grantedAt: new Date(),
-          grantedBy: currentUserId
-        };
-        
-        setPermissions(prev => [...prev, newPermission]);
-        setSearchResults([]);
-        setSearchQuery('');
-      }
-    } catch (error) {
-      console.error('Failed to add permission:', error);
-      setError('Failed to add user');
-    }
-  };
-
-  const removePermission = async (userId: string) => {
-    try {
-      // Mock API call - in real implementation, this would update the backend
+      setLoading(true);
       setPermissions(prev => prev.filter(p => p.userId !== userId));
     } catch (error) {
       console.error('Failed to remove permission:', error);
       setError('Failed to remove user');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updatePermission = async (userId: string, newRole: 'viewer' | 'editor') => {
+  const handleUpdatePermission = async (userId: string, newRole: 'viewer' | 'editor') => {
     try {
-      // Mock API call - in real implementation, this would update the backend
+      setLoading(true);
       setPermissions(prev => 
-        prev.map(p => 
-          p.userId === userId ? { ...p, role: newRole } : p
-        )
+        prev.map(p => p.userId === userId ? { ...p, role: newRole } : p)
       );
     } catch (error) {
       console.error('Failed to update permission:', error);
       setError('Failed to update permission');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const updateLinkSharing = async (permission: 'viewer' | 'editor' | 'none') => {
+  const handleCopyLink = async () => {
+    const shareUrl = `${window.location.origin}/documents/${documentId}`;
     try {
-      setLinkPermission(permission);
-      setIsPublic(permission !== 'none');
-      // Mock API call - in real implementation, this would update the backend
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (error) {
-      console.error('Failed to update link sharing:', error);
-      setError('Failed to update link sharing');
+      console.error('Failed to copy link:', error);
     }
   };
 
@@ -256,6 +221,20 @@ export function DocumentShareDialog({
     }
   };
 
+  const getLinkSharingIcon = (mode: string) => {
+    switch (mode) {
+      case 'edit': return <Edit className="h-4 w-4" />;
+      case 'view': return <Eye className="h-4 w-4" />;
+      case 'disabled': return <Lock className="h-4 w-4" />;
+      default: return <Link className="h-4 w-4" />;
+    }
+  };
+
+  const filteredPermissions = permissions.filter(permission =>
+    permission.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    permission.user.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh]">
@@ -265,175 +244,190 @@ export function DocumentShareDialog({
             Share "{documentTitle}"
           </DialogTitle>
           <DialogDescription>
-            Manage who can access and edit this document
+            Manage who can access this document and their permissions.
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-6">
-          {/* Add People Section */}
+          {/* Link Sharing */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium">Add people</h4>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by name or email..."
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    searchUsers(e.target.value);
-                  }}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <div className="border rounded-lg p-2 space-y-1">
-                {searchResults.map(user => (
-                  <div key={user.id} className="flex items-center justify-between p-2 hover:bg-accent rounded">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={user.avatar} alt={user.name} />
-                        <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <p className="text-sm font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.email}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Select onValueChange={(value: 'viewer' | 'editor') => addPermission(user.id, value)}>
-                        <SelectTrigger className="w-24 h-8">
-                          <SelectValue placeholder="Role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="viewer">Viewer</SelectItem>
-                          <SelectItem value="editor">Editor</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => addPermission(user.id, 'viewer')}
-                        className="h-8 w-8 p-0"
-                      >
-                        <Plus className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Link Sharing Section */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-medium">Share with link</h4>
-            <div className="flex items-center gap-2 p-3 border rounded-lg">
-              {isPublic ? (
-                <Globe className="h-4 w-4 text-green-600" />
-              ) : (
-                <Lock className="h-4 w-4 text-gray-600" />
-              )}
-              <div className="flex-1">
-                <p className="text-sm font-medium">
-                  {isPublic ? 'Anyone with the link' : 'Restricted'}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {linkPermission === 'editor' ? 'Can edit' : 
-                   linkPermission === 'viewer' ? 'Can view' : 'No access'}
-                </p>
-              </div>
-              <Select value={linkPermission} onValueChange={updateLinkSharing}>
-                <SelectTrigger className="w-32">
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <Link className="h-4 w-4" />
+              Link Sharing
+            </h3>
+            
+            <div className="flex items-center gap-2">
+              <Select value={linkSharing} onValueChange={(value: 'disabled' | 'view' | 'edit') => setLinkSharing(value)}>
+                <SelectTrigger className="flex-1">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No access</SelectItem>
-                  <SelectItem value="viewer">Can view</SelectItem>
-                  <SelectItem value="editor">Can edit</SelectItem>
+                  <SelectItem value="disabled">
+                    <div className="flex items-center gap-2">
+                      <Lock className="h-4 w-4" />
+                      Disabled - Only invited people
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="view">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      Anyone with link can view
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="edit">
+                    <div className="flex items-center gap-2">
+                      <Edit className="h-4 w-4" />
+                      Anyone with link can edit
+                    </div>
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCopyLink}
+                className="flex items-center gap-2"
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied!' : 'Copy'}
+              </Button>
             </div>
-
-            {isPublic && (
-              <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                <Input
-                  value={shareLink}
-                  readOnly
-                  className="flex-1"
-                />
-                <Button variant="outline" size="sm" onClick={copyShareLink}>
-                  <Copy className="h-4 w-4 mr-2" />
-                  Copy
-                </Button>
-              </div>
-            )}
           </div>
 
           <Separator />
 
-          {/* People with Access Section */}
+          {/* Invite People */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium">People with access</h4>
+            <h3 className="text-sm font-medium flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              Invite People
+            </h3>
+            
+            <div className="flex gap-2">
+              <Input
+                placeholder="Enter email address"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                className="flex-1"
+                type="email"
+              />
+              <Select value={inviteRole} onValueChange={(value: 'viewer' | 'editor') => setInviteRole(value)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="viewer">Can view</SelectItem>
+                  <SelectItem value="editor">Can edit</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={handleInviteUser} disabled={loading || !inviteEmail.trim()}>
+                <Plus className="h-4 w-4 mr-1" />
+                Invite
+              </Button>
+            </div>
+          </div>
+
+          {/* People with Access */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                People with Access ({permissions.length})
+              </h3>
+              
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search people..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-48"
+                />
+              </div>
+            </div>
+
             <ScrollArea className="max-h-64">
               <div className="space-y-2">
-                {permissions.map(permission => (
+                {filteredPermissions.map((permission) => (
                   <div key={permission.userId} className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="flex items-center gap-3">
                       <Avatar className="h-10 w-10">
                         <AvatarImage src={permission.user.avatar} alt={permission.user.name} />
-                        <AvatarFallback>{permission.user.name.charAt(0)}</AvatarFallback>
+                        <AvatarFallback>
+                          {permission.user.name.charAt(0)}
+                        </AvatarFallback>
                       </Avatar>
+                      
                       <div>
-                        <p className="text-sm font-medium">{permission.user.name}</p>
-                        <p className="text-xs text-muted-foreground">{permission.user.email}</p>
+                        <p className="font-medium">{permission.user.name}</p>
+                        <p className="text-sm text-muted-foreground">{permission.user.email}</p>
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={getRoleColor(permission.role)}>
+                      <Badge 
+                        variant="outline" 
+                        className={`flex items-center gap-1 ${getRoleColor(permission.role)}`}
+                      >
                         {getRoleIcon(permission.role)}
-                        <span className="ml-1 capitalize">{permission.role}</span>
+                        <span className="capitalize">{permission.role}</span>
                       </Badge>
                       
-                      {permission.role !== 'owner' && isOwner && (
-                        <Select 
-                          value={permission.role} 
-                          onValueChange={(value: 'viewer' | 'editor') => updatePermission(permission.userId, value)}
-                        >
-                          <SelectTrigger className="w-24 h-8">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="viewer">Viewer</SelectItem>
-                            <SelectItem value="editor">Editor</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      )}
-                      
-                      {permission.role !== 'owner' && permission.userId !== currentUserId && isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removePermission(permission.userId)}
-                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                      {permission.role !== 'owner' && canManage && (
+                        <div className="flex items-center gap-1">
+                          <Select 
+                            value={permission.role} 
+                            onValueChange={(value: 'viewer' | 'editor') => 
+                              handleUpdatePermission(permission.userId, value)
+                            }
+                          >
+                            <SelectTrigger className="w-24 h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="viewer">View</SelectItem>
+                              <SelectItem value="editor">Edit</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => handleRemovePermission(permission.userId)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
                 ))}
+                
+                {filteredPermissions.length === 0 && (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>No people found</p>
+                    {searchQuery && (
+                      <p className="text-sm mt-2">Try adjusting your search</p>
+                    )}
+                  </div>
+                )}
               </div>
             </ScrollArea>
           </div>
 
+          {/* Error and Success Messages */}
           {error && (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert>
+              <AlertDescription>{success}</AlertDescription>
             </Alert>
           )}
         </div>

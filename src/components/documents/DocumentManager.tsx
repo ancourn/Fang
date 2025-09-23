@@ -11,6 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CollaborativeDocumentEditor } from "./CollaborativeDocumentEditor";
+import { DocumentSearch } from "./DocumentSearch";
+import { DocumentTemplates } from "./DocumentTemplates";
+import { DocumentAnalytics } from "./DocumentAnalytics";
 import { 
   Plus, 
   FileText, 
@@ -22,7 +25,9 @@ import {
   Edit,
   Loader2,
   Clock,
-  Users
+  Users,
+  LayoutTemplate,
+  BarChart3
 } from "lucide-react";
 
 interface Document {
@@ -63,10 +68,11 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [deletingDocument, setDeletingDocument] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showAnalytics, setShowAnalytics] = useState(false);
 
   useEffect(() => {
     fetchDocuments();
@@ -138,10 +144,25 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
     setIsCreateDialogOpen(false);
   };
 
-  const filteredDocuments = documents.filter(doc =>
-    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    doc.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const handleTemplateSelect = (template: any) => {
+    // Create a new document from the template
+    setIsCreateDialogOpen(true);
+    // The template content will be used in the CollaborativeDocumentEditor
+  };
+
+  const handleCreateDocumentFromTemplate = (template: any) => {
+    // Create document directly from template
+    const newDocument = {
+      title: `${template.title} (Copy)`,
+      content: template.content,
+      type: template.type,
+      workspaceId,
+      channelId,
+    };
+    
+    // This will be handled by the CollaborativeDocumentEditor
+    setIsCreateDialogOpen(true);
+  };
 
   const getDocumentIcon = (type: string) => {
     switch (type) {
@@ -185,14 +206,37 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2 flex-1">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search documents..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showTemplates ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowTemplates(!showTemplates);
+              setShowAnalytics(false);
+            }}
+          >
+            <LayoutTemplate className="h-4 w-4 mr-2" />
+            Templates
+          </Button>
+          <Button
+            variant={showAnalytics ? "default" : "outline"}
+            size="sm"
+            onClick={() => {
+              setShowAnalytics(!showAnalytics);
+              setShowTemplates(false);
+            }}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Analytics
+          </Button>
+          <div className="flex items-center gap-2 flex-1">
+            <DocumentSearch
+              workspaceId={workspaceId}
+              onResultSelect={(result) => {
+                // Handle search result selection
+                console.log('Selected document:', result);
+              }}
+              className="flex-1"
             />
           </div>
         </div>
@@ -220,15 +264,33 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
         </Dialog>
       </div>
 
+      {/* Templates Section */}
+      {showTemplates && (
+        <div className="border rounded-lg p-4">
+          <DocumentTemplates
+            workspaceId={workspaceId}
+            onTemplateSelect={handleTemplateSelect}
+            onCreateDocument={handleCreateDocumentFromTemplate}
+          />
+        </div>
+      )}
+
+      {/* Analytics Section */}
+      {showAnalytics && (
+        <div className="border rounded-lg p-4">
+          <DocumentAnalytics workspaceId={workspaceId} />
+        </div>
+      )}
+
       {/* Documents List */}
       <ScrollArea className="max-h-96">
         <div className="space-y-2">
-          {filteredDocuments.length === 0 ? (
+          {documents.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              {searchQuery ? "No documents found matching your search." : "No documents yet. Create your first document!"}
+              No documents yet. Create your first document!
             </div>
           ) : (
-            filteredDocuments.map((document) => (
+            documents.map((document) => (
               <div
                 key={document.id}
                 className={`p-4 rounded-lg border cursor-pointer transition-colors hover:bg-accent/50 ${
