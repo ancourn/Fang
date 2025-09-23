@@ -1,0 +1,757 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  avatar        String?
+  status        String   @default("offline") // online, offline, away, busy
+  statusMessage String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  workspaces    UserWorkspace[]
+  channels      ChannelMember[]
+  messages      Message[]
+  sentMessages  DirectMessage[] @relation("DirectMessageSender")
+  receivedMessages DirectMessage[] @relation("DirectMessageReceiver")
+  documents     Document[]
+  files         File[]
+  notifications Notification[]
+  reactions     MessageReaction[]
+  documentVersions DocumentVersion[]
+  documentCollaborators DocumentCollaborator[]
+  documentComments DocumentComment[]
+  documentActivities DocumentActivity[]
+  createdTasks  Task[] @relation("TaskCreator")
+  assignedTasks Task[] @relation("TaskAssignee")
+  taskComments TaskComment[]
+  taskActivities TaskActivity[]
+  createdEvents CalendarEvent[] @relation("CalendarEventCreator")
+  eventAttendances CalendarAttendee[]
+  requestedApprovals Approval[] @relation("ApprovalRequester")
+  approvalComments ApprovalComment[]
+  approvalHistory ApprovalHistory[]
+  knowledgeArticles KnowledgeArticle[]
+  knowledgeVersions KnowledgeVersion[]
+  knowledgeComments KnowledgeComment[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  members     UserWorkspace[]
+  channels    Channel[]
+  documents   Document[]
+  files       File[]
+  tasks       Task[]
+  calendarEvents CalendarEvent[]
+  meetingRooms MeetingRoom[]
+  approvalWorkflows ApprovalWorkflow[]
+  knowledgeBases KnowledgeBase[]
+
+  @@map("workspaces")
+}
+
+model UserWorkspace {
+  id         String   @id @default(cuid())
+  userId     String
+  workspaceId String
+  role       String   @default("member") // owner, admin, member
+  joinedAt   DateTime @default(now())
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@map("user_workspaces")
+}
+
+model Channel {
+  id          String   @id @default(cuid())
+  name        String
+  displayName String?
+  description String?
+  type        String   @default("public") // public, private, direct
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  members    ChannelMember[]
+  messages   Message[]
+  documents  Document[]
+  tasks      Task[]
+  calendarEvents CalendarEvent[]
+
+  @@map("channels")
+}
+
+model ChannelMember {
+  id        String   @id @default(cuid())
+  userId    String
+  channelId String
+  joinedAt  DateTime @default(now())
+
+  // Relations
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, channelId])
+  @@map("channel_members")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  content    String
+  channelId  String?
+  userId     String
+  threadId   String?  // For message threading
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  channel    Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread     Message?  @relation("MessageThread", fields: [threadId], references: [id])
+  replies    Message[] @relation("MessageThread")
+  files      File[]
+  reactions  MessageReaction[]
+
+  @@map("messages")
+}
+
+model DirectMessage {
+  id         String   @id @default(cuid())
+  content    String
+  senderId   String
+  receiverId String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  sender   User   @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User   @relation("DirectMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  files    File[]
+
+  @@map("direct_messages")
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  // Relations
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@map("message_reactions")
+}
+
+model Document {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  type        String   @default("doc") // doc, sheet, slide
+  workspaceId String
+  channelId   String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   Channel?  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  files     File[]
+  versions  DocumentVersion[]
+  activities DocumentActivity[]
+  collaborators DocumentCollaborator[]
+  comments   DocumentComment[]
+
+  @@map("documents")
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  size        Int
+  type        String
+  url         String
+  messageId   String?
+  directMessageId String?
+  documentId  String?
+  workspaceId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  // Relations
+  message      Message?      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  directMessage DirectMessage? @relation(fields: [directMessageId], references: [id], onDelete: Cascade)
+  document     Document?     @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("files")
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  type      String   // message, mention, reaction, etc.
+  title     String
+  content   String?
+  userId    String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+// Document Version History
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  title      String
+  content    String
+  changelog  String?
+  userId     String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}
+
+// Document Collaboration
+model DocumentCollaborator {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String
+  role       String   @default("viewer") // owner, editor, viewer, commenter
+  permission String   @default("read") // read, write, comment
+  joinedAt   DateTime @default(now())
+  lastActive DateTime?
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@map("document_collaborators")
+}
+
+// Document Comments
+model DocumentComment {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String
+  content    String
+  position   String?  // JSON string with position info for inline comments
+  parentId   String?  // For threaded comments
+  resolved   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent   DocumentComment? @relation("DocumentCommentThread", fields: [parentId], references: [id])
+  replies  DocumentComment[] @relation("DocumentCommentThread")
+
+  @@map("document_comments")
+}
+
+// Document Activity Tracking
+model DocumentActivity {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String
+  action     String   // created, updated, viewed, commented, shared, etc.
+  details    String?  // JSON string with additional details
+  createdAt  DateTime @default(now())
+
+  // Relations
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("document_activities")
+}
+
+// Task Management System
+model Task {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  status      String   @default("todo") // todo, in_progress, in_review, done
+  priority    String   @default("medium") // low, medium, high, urgent
+  dueDate     DateTime?
+  completedAt DateTime?
+  workspaceId String
+  channelId   String?
+  assigneeId  String?
+  creatorId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel    Channel?        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  assignee   User?           @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator    User            @relation("TaskCreator", fields: [creatorId], references: [id])
+  comments   TaskComment[]
+  activities TaskActivity[]
+  labels     TaskLabel[]
+  calendarEvents CalendarEvent[]
+
+  @@map("tasks")
+}
+
+model TaskComment {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_comments")
+}
+
+model TaskActivity {
+  id        String   @id @default(cuid())
+  taskId    String
+  userId    String
+  action    String   // created, updated, assigned, completed, etc.
+  details   String?  // JSON string with additional details
+  createdAt DateTime @default(now())
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("task_activities")
+}
+
+model TaskLabel {
+  id     String @id @default(cuid())
+  taskId String
+  name   String
+  color  String @default("#3b82f6") // Default blue color
+
+  // Relations
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@map("task_labels")
+}
+
+// Calendar & Meeting System
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  allDay      Boolean  @default(false)
+  location    String?
+  meetingUrl  String?
+  type        String   @default("event") // event, meeting, reminder, deadline
+  status      String   @default("confirmed") // confirmed, tentative, cancelled
+  visibility  String   @default("public") // public, private, confidential
+  color       String   @default("#3b82f6") // Default blue color
+  workspaceId String
+  channelId   String?
+  taskId      String?
+  creatorId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel    Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  task       Task?            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  creator    User             @relation("CalendarEventCreator", fields: [creatorId], references: [id])
+  attendees  CalendarAttendee[]
+  reminders  CalendarReminder[]
+  recurring  CalendarRecurring?
+  roomBookings MeetingRoomBooking[]
+
+  @@map("calendar_events")
+}
+
+model CalendarAttendee {
+  id         String   @id @default(cuid())
+  eventId    String
+  userId     String
+  email      String?
+  status     String   @default("invited") // invited, accepted, declined, tentative
+  role       String   @default("attendee") // organizer, attendee, optional
+  respondedAt DateTime?
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@map("calendar_attendees")
+}
+
+model CalendarReminder {
+  id        String   @id @default(cuid())
+  eventId   String
+  minutesBefore Int    @default(15) // Minutes before event to remind
+  method    String   @default("notification") // notification, email, push
+  sent      Boolean  @default(false)
+  sentAt    DateTime?
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_reminders")
+}
+
+model CalendarRecurring {
+  id           String   @id @default(cuid())
+  eventId      String   @unique
+  frequency    String   // daily, weekly, monthly, yearly
+  interval     Int      @default(1) // Repeat every X intervals
+  until        DateTime? // End date for recurrence
+  count        Int?     // Number of occurrences
+  byDay        String?  // Comma-separated days (MO,TU,WE,TH,FR,SA,SU)
+  byMonth      Int?     // Month number (1-12)
+  byMonthDay   Int?     // Day of month (1-31)
+  exceptions   String?  // JSON array of exception dates
+
+  // Relations
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@map("calendar_recurring")
+}
+
+// Meeting Room & Resource Management
+model MeetingRoom {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  location    String?
+  capacity    Int?
+  equipment   String?  // JSON array of available equipment
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  bookings   MeetingRoomBooking[]
+
+  @@map("meeting_rooms")
+}
+
+model MeetingRoomBooking {
+  id           String   @id @default(cuid())
+  roomId       String
+  eventId      String
+  startTime    DateTime
+  endTime      DateTime
+  status       String   @default("confirmed") // confirmed, cancelled
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  room  MeetingRoom   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  event CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, eventId])
+  @@map("meeting_room_bookings")
+}
+
+// Approval Workflow System
+model ApprovalWorkflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // task, document, expense, leave, etc.
+  workspaceId String
+  isActive    Boolean  @default(true)
+  stages      ApprovalStage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  approvals Approval[]
+
+  @@map("approval_workflows")
+}
+
+model ApprovalStage {
+  id           String   @id @default(cuid())
+  workflowId   String
+  name         String
+  description  String?
+  order        Int
+  type         String   @default("sequential") // sequential, parallel, conditional
+  approverType String   @default("user") // user, role, group
+  approverId   String?  // User ID or Role ID
+  timeoutHours Int?     // Timeout in hours for this stage
+  isRequired   Boolean  @default(true)
+  conditions   String?  // JSON string with conditions
+  approvals    Approval[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("approval_stages")
+}
+
+model Approval {
+  id          String   @id @default(cuid())
+  workflowId  String
+  stageId     String
+  title       String
+  description String?
+  type        String   // task, document, expense, leave, etc.
+  entityId    String   // ID of the entity being approved (task ID, document ID, etc.)
+  status      String   @default("pending") // pending, approved, rejected, cancelled
+  priority    String   @default("medium") // low, medium, high, urgent
+  requesterId String
+  workspaceId String
+  dueDate     DateTime?
+  completedAt DateTime?
+  comments    ApprovalComment[]
+  history     ApprovalHistory[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stage    ApprovalStage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  requester User            @relation("ApprovalRequester", fields: [requesterId], references: [id])
+
+  @@map("approvals")
+}
+
+model ApprovalComment {
+  id         String   @id @default(cuid())
+  approvalId String
+  userId     String
+  content    String
+  action     String   // comment, approved, rejected, requested_changes
+  createdAt  DateTime @default(now())
+
+  // Relations
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@map("approval_comments")
+}
+
+model ApprovalHistory {
+  id         String   @id @default(cuid())
+  approvalId String
+  userId     String
+  action     String   // created, submitted, approved, rejected, cancelled, etc.
+  details    String?  // JSON string with additional details
+  createdAt  DateTime @default(now())
+
+  // Relations
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@map("approval_history")
+}
+
+// Knowledge Base / Wiki System
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  workspaceId String
+  parentId    String?  // For hierarchical structure
+  isCategory  Boolean  @default(false)
+  icon        String?
+  color       String?
+  sortOrder   Int      @default(0)
+  isPublic    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent     KnowledgeBase? @relation("KnowledgeBaseHierarchy", fields: [parentId], references: [id])
+  children   KnowledgeBase[] @relation("KnowledgeBaseHierarchy")
+  articles   KnowledgeArticle[]
+  permissions KnowledgePermission[]
+  categoryArticles KnowledgeArticle[] @relation("ArticleCategory")
+
+  @@unique([workspaceId, name])
+
+  @@map("knowledge_bases")
+}
+
+model KnowledgeArticle {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  excerpt     String?
+  slug        String   @unique
+  status      String   @default("draft") // draft, published, archived
+  baseId      String
+  authorId    String
+  categoryId  String?
+  sortOrder   Int      @default(0)
+  isFeatured  Boolean  @default(false)
+  viewCount   Int      @default(0)
+  isPublic    Boolean  @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  base        KnowledgeBase       @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  category    KnowledgeBase?      @relation("ArticleCategory", fields: [categoryId], references: [id])
+  author      User                @relation(fields: [authorId], references: [id])
+  versions    KnowledgeVersion[]
+  comments    KnowledgeComment[]
+  attachments KnowledgeAttachment[]
+  permissions KnowledgePermission[]
+  articleTags KnowledgeArticleTag[]
+
+  @@unique([baseId, slug])
+
+  @@map("knowledge_articles")
+}
+
+model KnowledgeVersion {
+  id         String   @id @default(cuid())
+  articleId  String
+  version    Int
+  title      String
+  content    String
+  changelog  String?
+  authorId   String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  User            @relation(fields: [authorId], references: [id])
+
+  @@unique([articleId, version])
+  @@map("knowledge_versions")
+}
+
+model KnowledgeComment {
+  id         String   @id @default(cuid())
+  articleId  String
+  userId     String
+  content    String
+  parentId   String?  // For threaded comments
+  isResolved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id])
+  parent  KnowledgeComment? @relation("CommentThread", fields: [parentId], references: [id])
+  replies KnowledgeComment[] @relation("CommentThread")
+
+  @@map("knowledge_comments")
+}
+
+model KnowledgeAttachment {
+  id        String   @id @default(cuid())
+  articleId String
+  fileId    String
+  name      String
+  size      Int
+  type      String
+  url       String
+  createdAt DateTime @default(now())
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_attachments")
+}
+
+model KnowledgeTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#3b82f6")
+  articleTags KnowledgeArticleTag[]
+
+  @@map("knowledge_tags")
+}
+
+model KnowledgeArticleTag {
+  id       String @id @default(cuid())
+  articleId String
+  tagId    String
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     KnowledgeTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, tagId])
+  @@map("knowledge_article_tags")
+}
+
+model KnowledgePermission {
+  id           String   @id @default(cuid())
+  baseId       String?
+  articleId    String?
+  userId       String?
+  roleId       String?
+  permission   String   // read, write, admin
+  createdAt    DateTime @default(now())
+
+  // Relations
+  base    KnowledgeBase?    @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  article KnowledgeArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_permissions")
+}
