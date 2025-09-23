@@ -757,6 +757,7 @@ model KnowledgePermission {
   article KnowledgeArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@map("knowledge_permissions")
+<<<<<<< HEAD
 }
 
 // Document Templates System

@@ -68,6 +68,7 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<Document | null>(null);
   const [deletingDocument, setDeletingDocument] = useState<string | null>(null);
@@ -144,7 +145,7 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
     setIsCreateDialogOpen(false);
   };
 
-  const handleTemplateSelect = (template: any) => {
+const handleTemplateSelect = (template: any) => {
     // Create a new document from the template
     setIsCreateDialogOpen(true);
     // The template content will be used in the CollaborativeDocumentEditor
@@ -163,6 +164,11 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
     // This will be handled by the CollaborativeDocumentEditor
     setIsCreateDialogOpen(true);
   };
+
+  const filteredDocuments = documents.filter(doc =>
+    doc.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    doc.content.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   const getDocumentIcon = (type: string) => {
     switch (type) {
@@ -206,7 +212,7 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
+<div className="flex items-center gap-2">
           <Button
             variant={showTemplates ? "default" : "outline"}
             size="sm"
@@ -264,7 +270,7 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
         </Dialog>
       </div>
 
-      {/* Templates Section */}
+    {/* Templates Section */}
       {showTemplates && (
         <div className="border rounded-lg p-4">
           <DocumentTemplates
@@ -285,12 +291,12 @@ export function DocumentManager({ workspaceId, channelId, onDocumentSelect, sele
       {/* Documents List */}
       <ScrollArea className="max-h-96">
         <div className="space-y-2">
-          {documents.length === 0 ? (
+          {filteredDocuments.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No documents yet. Create your first document!
+              {searchQuery ? "No documents found matching your search." : "No documents yet. Create your first document!"}
             </div>
           ) : (
-            documents.map((document) => (
+            filteredDocuments.map((document) => (
               <div
                 key={document.id}
                 className={`p-4 rounded-lg border cursor-pointer transition-colors hover:bg-accent/50 ${
