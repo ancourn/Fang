@@ -21,6 +21,10 @@ import { SearchButton } from "@/components/search/SearchButton";
 import { AIAssistant } from "@/components/ai/AIAssistant";
 import { ProjectManager } from "@/components/projects/ProjectManager";
 import { WorkflowManager } from "@/components/workflows/WorkflowManager";
+import { SecurityManager } from "@/components/security/SecurityManager";
+import { IntegrationManager } from "@/components/integrations/IntegrationManager";
+import { AnalyticsDashboard } from "@/components/analytics/AnalyticsDashboard";
+import { SettingsManager } from "@/components/settings/SettingsManager";
 import { useAuth } from "@/contexts/AuthContext";
 import { 
   Home, 
@@ -35,6 +39,8 @@ import {
   Brain,
   FolderKanban,
   Workflow,
+  Shield,
+  Plug,
   Settings, 
   Search,
   Plus,
@@ -42,7 +48,8 @@ import {
   ChevronDown,
   MoreHorizontal,
   CheckCircle,
-  LogOut
+  LogOut,
+  BarChart3
 } from "lucide-react";
 
 interface FeishuLayoutProps {
@@ -60,9 +67,12 @@ const navigationItems = [
   { name: "Meetings", icon: Video, href: "/meetings" },
   { name: "Projects", icon: FolderKanban, href: "/projects" },
   { name: "Workflows", icon: Workflow, href: "/workflows" },
+  { name: "Analytics", icon: BarChart3, href: "/analytics" },
   { name: "Knowledge", icon: BookOpen, href: "/knowledge" },
   { name: "Approvals", icon: CheckCircle, href: "/approvals" },
   { name: "AI Assistant", icon: Brain, href: "/ai" },
+  { name: "Security", icon: Shield, href: "/security" },
+  { name: "Integrations", icon: Plug, href: "/integrations" },
   { name: "Settings", icon: Settings, href: "/settings" },
 ];
 
@@ -413,12 +423,20 @@ export function FeishuLayout({ children }: FeishuLayoutProps) {
             <ProjectManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "workflows" && selectedWorkspace ? (
             <WorkflowManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "analytics" && selectedWorkspace ? (
+            <AnalyticsDashboard workspaceId={selectedWorkspace.id} />
           ) : activeTab === "knowledge" && selectedWorkspace ? (
             <KnowledgeManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "approvals" && selectedWorkspace ? (
             <ApprovalManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "ai" && selectedWorkspace ? (
             <AIAssistant workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "security" && selectedWorkspace ? (
+            <SecurityManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "integrations" && selectedWorkspace ? (
+            <IntegrationManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "settings" && selectedWorkspace ? (
+            <SettingsManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "documents" && selectedWorkspace ? (
             <DocumentManager 
               workspaceId={selectedWorkspace.id} 

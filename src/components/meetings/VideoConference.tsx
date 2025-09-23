@@ -17,7 +17,7 @@ import {
   Users,
   MoreVertical,
   Share,
-  Recording,
+  Circle,
   Settings
 } from "lucide-react";
 import { useSocket } from "@/hooks/useSocket";
@@ -304,7 +304,7 @@ export function VideoConference({ meetingId, roomId, onLeave }: VideoConferenceP
           </div>
           {isRecording && (
             <Badge variant="destructive" className="flex items-center gap-1">
-              <Recording className="h-3 w-3" />
+              <Circle className="h-3 w-3 fill-current" />
               Recording
             </Badge>
           )}
@@ -429,7 +429,7 @@ export function VideoConference({ meetingId, roomId, onLeave }: VideoConferenceP
           className="rounded-full"
           onClick={toggleRecording}
         >
-          <Recording className="h-5 w-5" />
+          <Circle className="h-5 w-5" />
         </Button>
         
         <Button

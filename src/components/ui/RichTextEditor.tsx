@@ -228,7 +228,7 @@ export function RichTextEditor({
         onClick={() => insertMarkdown("![Image](url)")}
         title="Insert Image"
       >
-        <Image className="h-4 w-4" />
+        <Image className="h-4 w-4" alt="" />
       </Button>
       <Button
         variant="ghost"

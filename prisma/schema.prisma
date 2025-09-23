@@ -62,6 +62,18 @@ model User {
   userActivityMetrics UserActivityMetric[]
   createdDashboards Dashboard[]
   createdAnalyticsReports AnalyticsReport[]
+  userSecuritySettings UserSecuritySetting[]
+  securityAuditLogs SecurityAuditLog[]
+  complianceAssessments ComplianceAssessment[]
+  reportedSecurityIncidents SecurityIncident[] @relation("SecurityIncidentReporter")
+  assignedSecurityIncidents SecurityIncident[] @relation("SecurityIncidentAssignee")
+  accessControlAssignments AccessControlAssignment[]
+  grantedAccessControls AccessControlAssignment[] @relation("AccessControlGrantor")
+  securityIncidentTimeline SecurityIncidentTimeline[]
+  integrationConnections IntegrationConnection[]
+  webhooks Webhook[]
+  apiKeys ApiKey[]
+  integrationTemplates IntegrationTemplate[]
 
   @@map("users")
 }
@@ -93,6 +105,20 @@ model Workspace {
   performanceMetrics PerformanceMetric[]
   dashboards Dashboard[]
   userActivityMetrics UserActivityMetric[]
+  securityPolicies SecurityPolicy[]
+  securityAuditLogs SecurityAuditLog[]
+  complianceFrameworks ComplianceFramework[]
+  complianceRequirements ComplianceRequirement[]
+  dataRetentionPolicies DataRetentionPolicy[]
+  encryptionKeys EncryptionKey[]
+  securityIncidents SecurityIncident[]
+  accessControls AccessControl[]
+  userSecuritySettings UserSecuritySetting[]
+  integrations Integration[]
+  webhooks Webhook[]
+  apiKeys ApiKey[]
+  integrationTemplates IntegrationTemplate[]
+  integrationConnections IntegrationConnection[]
 
   @@map("workspaces")
 }
@@ -1204,4 +1230,495 @@ model DashboardWidget {
   dashboard Dashboard @relation(fields: [dashboardId], references: [id], onDelete: Cascade)
 
   @@map("dashboard_widgets")
+}
+
+// Security and Compliance System
+model SecurityPolicy {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // password, mfa, session, data_retention, access_control
+  config      String   // JSON policy configuration
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userSecuritySettings UserSecuritySetting[]
+
+  @@map("security_policies")
+}
+
+model UserSecuritySetting {
+  id             String   @id @default(cuid())
+  userId         String
+  workspaceId    String
+  policyId       String?
+  mfaEnabled     Boolean  @default(false)
+  mfaSecret      String?
+  mfaBackupCodes String?  // JSON array of backup codes
+  lastLoginAt    DateTime?
+  lastLoginIp    String?
+  lastLoginDevice String?
+  sessionTimeout Int      @default(3600) // seconds
+  passwordExpiresAt DateTime?
+  isLocked       Boolean  @default(false)
+  lockReason     String?
+  lockedUntil    DateTime?
+  securityLevel  String   @default("standard") // standard, enhanced, high
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  policy   SecurityPolicy? @relation(fields: [policyId], references: [id])
+
+  @@unique([userId, workspaceId])
+  @@map("user_security_settings")
+}
+
+model SecurityAuditLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  workspaceId String
+  action      String   // login, logout, file_access, data_modify, etc.
+  resource    String?  // Resource type (user, document, etc.)
+  resourceId  String?  // Resource ID
+  details     String?  // JSON details of the action
+  ipAddress   String?
+  userAgent   String?
+  location    String?  // Geo-location data
+  riskLevel   String   @default("low") // low, medium, high, critical
+  status      String   @default("success") // success, failed, blocked
+  createdAt   DateTime @default(now())
+
+  // Relations
+  user     User?     @relation(fields: [userId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("security_audit_logs")
+}
+
+model ComplianceFramework {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // gdpr, hipaa, soc2, pci_dss, iso27001
+  version     String?
+  workspaceId String
+  isActive    Boolean  @default(true)
+  config      String   // JSON framework configuration
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assessments ComplianceAssessment[]
+  requirements ComplianceRequirement[]
+
+  @@map("compliance_frameworks")
+}
+
+model ComplianceRequirement {
+  id              String   @id @default(cuid())
+  frameworkId     String
+  code            String   // Requirement code/identifier
+  title           String
+  description     String?
+  category        String   // technical, administrative, physical
+  controlType     String   // preventive, detective, corrective
+  implementation String?  // JSON implementation details
+  status          String   @default("not_implemented") // not_implemented, implemented, verified, non_compliant
+  evidence        String?  // JSON evidence references
+  lastAssessedAt  DateTime?
+  nextReviewDate  DateTime?
+  workspaceId     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  framework ComplianceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assessments ComplianceAssessment[]
+
+  @@unique([frameworkId, code])
+  @@map("compliance_requirements")
+}
+
+model ComplianceAssessment {
+  id            String   @id @default(cuid())
+  frameworkId   String
+  requirementId String
+  assessorId    String
+  score         Float    // 0-100 compliance score
+  findings      String?  // JSON assessment findings
+  recommendations String? // JSON recommendations
+  evidence      String?  // JSON evidence references
+  status        String   @default("in_progress") // in_progress, completed, reviewed
+  assessedAt    DateTime @default(now())
+  nextReviewAt  DateTime?
+
+  // Relations
+  framework   ComplianceFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+  requirement ComplianceRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  assessor    User @relation(fields: [assessorId], references: [id])
+
+  @@map("compliance_assessments")
+}
+
+model DataRetentionPolicy {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  dataType    String   // messages, documents, files, audit_logs, user_data
+  retentionPeriod Int   // Retention period in days
+  action      String   // delete, archive, anonymize
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  schedules RetentionSchedule[]
+
+  @@map("data_retention_policies")
+}
+
+model RetentionSchedule {
+  id         String   @id @default(cuid())
+  policyId   String
+  name       String
+  frequency  String   // daily, weekly, monthly, yearly
+  config     String   // JSON schedule configuration
+  lastRunAt  DateTime?
+  nextRunAt  DateTime
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  policy DataRetentionPolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+
+  @@map("retention_schedules")
+}
+
+model EncryptionKey {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   // aes256, rsa2048, ecc
+  keyData     String   // Encrypted key data
+  algorithm   String
+  keySize     Int
+  purpose     String   // data_at_rest, data_in_transit, user_data
+  workspaceId String
+  isActive    Boolean  @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("encryption_keys")
+}
+
+model SecurityIncident {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  type        String   // data_breach, unauthorized_access, malware, phishing, dos
+  severity    String   @default("low") // low, medium, high, critical
+  status      String   @default("open") // open, investigating, resolved, closed
+  affectedUsers String? // JSON array of affected user IDs
+  affectedData String? // JSON description of affected data
+  impact      String?  // JSON impact assessment
+  response    String?  // JSON response actions
+  reportedBy  String
+  assignedTo  String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  resolvedAt  DateTime?
+
+  // Relations
+  reporter User @relation("SecurityIncidentReporter", fields: [reportedBy], references: [id])
+  assignee User? @relation("SecurityIncidentAssignee", fields: [assignedTo], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  timeline SecurityIncidentTimeline[]
+
+  @@map("security_incidents")
+}
+
+model SecurityIncidentTimeline {
+  id           String   @id @default(cuid())
+  incidentId   String
+  action       String
+  description  String?
+  performedBy  String
+  metadata     String?  // JSON additional metadata
+  createdAt    DateTime @default(now())
+
+  // Relations
+  incident SecurityIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  performer User @relation(fields: [performedBy], references: [id])
+
+  @@map("security_incident_timeline")
+}
+
+model AccessControl {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  resource    String   // Resource type (document, project, workspace, etc.)
+  permissions String   // JSON permission configuration
+  workspaceId String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignments AccessControlAssignment[]
+
+  @@map("access_controls")
+}
+
+model AccessControlAssignment {
+  id            String   @id @default(cuid())
+  controlId     String
+  userId        String?
+  roleId        String?
+  resourceType  String
+  resourceId    String
+  permissions   String   // JSON assigned permissions
+  grantedBy     String
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  control  AccessControl @relation(fields: [controlId], references: [id], onDelete: Cascade)
+  user     User? @relation(fields: [userId], references: [id])
+  grantor  User @relation("AccessControlGrantor", fields: [grantedBy], references: [id])
+
+  @@map("access_control_assignments")
+}
+
+// Integration Capabilities System
+model Integration {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // api, webhook, oauth, webhook_consumer, custom
+  category    String   // productivity, communication, storage, analytics, security, custom
+  version     String?
+  icon        String?
+  config      String   // JSON integration configuration
+  workspaceId String
+  isActive    Boolean  @default(true)
+  isPublic    Boolean  @default(false) // For marketplace integrations
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connections IntegrationConnection[]
+  webhooks Webhook[]
+  apiKeys ApiKey[]
+  marketplaceListing MarketplaceListing?
+
+  @@map("integrations")
+}
+
+model IntegrationConnection {
+  id           String   @id @default(cuid())
+  integrationId String
+  name         String?
+  config       String   // JSON connection-specific configuration
+  status       String   @default("disconnected") // disconnected, connected, error, expired
+  authData     String?  // JSON authentication data (tokens, secrets, etc.)
+  lastSyncAt   DateTime?
+  nextSyncAt   DateTime?
+  errorLog     String?  // JSON error information
+  workspaceId  String
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  integration Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator    User @relation(fields: [createdBy], references: [id])
+  syncLogs   IntegrationSyncLog[]
+
+  @@unique([integrationId, workspaceId])
+  @@map("integration_connections")
+}
+
+model IntegrationSyncLog {
+  id             String   @id @default(cuid())
+  connectionId   String
+  operation      String   // sync, import, export, webhook, api_call
+  status         String   @default("pending") // pending, success, failed, retry
+  request        String?  // JSON request data
+  response       String?  // JSON response data
+  error          String?  // Error message
+  duration       Int?     // Duration in milliseconds
+  recordsProcessed Int?   // Number of records processed
+  createdAt      DateTime @default(now())
+
+  // Relations
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@map("integration_sync_logs")
+}
+
+model Webhook {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  integrationId String?
+  url          String
+  method       String   @default("POST") // GET, POST, PUT, DELETE
+  headers      String?  // JSON headers
+  events       String   // JSON array of event types
+  isActive     Boolean  @default(true)
+  secret       String?  // Webhook secret for verification
+  retryCount   Int      @default(3)
+  timeout      Int      @default(30000) // Timeout in milliseconds
+  workspaceId  String
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  integration Integration? @relation(fields: [integrationId], references: [id])
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator    User @relation(fields: [createdBy], references: [id])
+  deliveries WebhookDelivery[]
+
+  @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id         String   @id @default(cuid())
+  webhookId  String
+  eventId    String
+  url        String
+  method     String
+  headers    String?  // JSON headers
+  payload    String   // JSON payload
+  response   String?  // JSON response data
+  status     String   @default("pending") // pending, success, failed, retry
+  statusCode Int?
+  error      String?
+  attempt    Int      @default(1)
+  maxAttempts Int     @default(3)
+  nextAttemptAt DateTime?
+  deliveredAt DateTime?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  webhook Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@map("webhook_deliveries")
+}
+
+model ApiKey {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  key          String
+  secret       String
+  permissions  String   // JSON permission configuration
+  rateLimit    Int      @default(1000) // Requests per hour
+  lastUsedAt   DateTime?
+  expiresAt    DateTime?
+  integrationId String?
+  workspaceId  String
+  createdBy    String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  integration Integration? @relation(fields: [integrationId], references: [id])
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  creator    User @relation(fields: [createdBy], references: [id])
+  usageLogs  ApiUsageLog[]
+
+  @@unique([key])
+  @@map("api_keys")
+}
+
+model ApiUsageLog {
+  id         String   @id @default(cuid())
+  apiKeyId   String
+  endpoint   String
+  method     String
+  statusCode Int
+  responseTime Int     // Response time in milliseconds
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  apiKey ApiKey @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+
+  @@map("api_usage_logs")
+}
+
+model MarketplaceListing {
+  id            String   @id @default(cuid())
+  integrationId String   @unique
+  name          String
+  description   String
+  category      String
+  version       String
+  author        String
+  website       String?
+  documentation String?
+  pricing       String?  // JSON pricing information
+  features      String   // JSON feature list
+  screenshots   String?  // JSON array of screenshot URLs
+  rating        Float    @default(0)
+  reviewCount   Int      @default(0)
+  downloads     Int      @default(0)
+  isFeatured    Boolean  @default(false)
+  isApproved    Boolean  @default(false)
+  status        String   @default("pending") // pending, approved, rejected, suspended
+  publishedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  integration Integration @relation(fields: [integrationId], references: [id])
+
+  @@map("marketplace_listings")
+}
+
+model IntegrationTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  type        String   // workflow, automation, data_sync, notification
+  config      String   // JSON template configuration
+  workspaceId String?
+  isPublic    Boolean  @default(false)
+  isFeatured  Boolean  @default(false)
+  usageCount  Int      @default(0)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+  creator   User @relation(fields: [createdBy], references: [id])
+
+  @@map("integration_templates")
 }
