@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         ignored: ['**/*'], // 忽略所有文件变化
       };
     }
+    // Fix lucide-react barrel optimizer issue
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'lucide-react': require.resolve('lucide-react'),
+    };
     return config;
   },
   eslint: {

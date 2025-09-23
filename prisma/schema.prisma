@@ -43,6 +43,12 @@ model User {
   taskActivities TaskActivity[]
   createdEvents CalendarEvent[] @relation("CalendarEventCreator")
   eventAttendances CalendarAttendee[]
+  requestedApprovals Approval[] @relation("ApprovalRequester")
+  approvalComments ApprovalComment[]
+  approvalHistory ApprovalHistory[]
+  knowledgeArticles KnowledgeArticle[]
+  knowledgeVersions KnowledgeVersion[]
+  knowledgeComments KnowledgeComment[]
 
   @@map("users")
 }
@@ -63,6 +69,8 @@ model Workspace {
   tasks       Task[]
   calendarEvents CalendarEvent[]
   meetingRooms MeetingRoom[]
+  approvalWorkflows ApprovalWorkflow[]
+  knowledgeBases KnowledgeBase[]
 
   @@map("workspaces")
 }
@@ -495,4 +503,255 @@ model MeetingRoomBooking {
 
   @@unique([roomId, eventId])
   @@map("meeting_room_bookings")
+}
+
+// Approval Workflow System
+model ApprovalWorkflow {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  type        String   // task, document, expense, leave, etc.
+  workspaceId String
+  isActive    Boolean  @default(true)
+  stages      ApprovalStage[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  approvals Approval[]
+
+  @@map("approval_workflows")
+}
+
+model ApprovalStage {
+  id           String   @id @default(cuid())
+  workflowId   String
+  name         String
+  description  String?
+  order        Int
+  type         String   @default("sequential") // sequential, parallel, conditional
+  approverType String   @default("user") // user, role, group
+  approverId   String?  // User ID or Role ID
+  timeoutHours Int?     // Timeout in hours for this stage
+  isRequired   Boolean  @default(true)
+  conditions   String?  // JSON string with conditions
+  approvals    Approval[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@map("approval_stages")
+}
+
+model Approval {
+  id          String   @id @default(cuid())
+  workflowId  String
+  stageId     String
+  title       String
+  description String?
+  type        String   // task, document, expense, leave, etc.
+  entityId    String   // ID of the entity being approved (task ID, document ID, etc.)
+  status      String   @default("pending") // pending, approved, rejected, cancelled
+  priority    String   @default("medium") // low, medium, high, urgent
+  requesterId String
+  workspaceId String
+  dueDate     DateTime?
+  completedAt DateTime?
+  comments    ApprovalComment[]
+  history     ApprovalHistory[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workflow ApprovalWorkflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  stage    ApprovalStage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  requester User            @relation("ApprovalRequester", fields: [requesterId], references: [id])
+
+  @@map("approvals")
+}
+
+model ApprovalComment {
+  id         String   @id @default(cuid())
+  approvalId String
+  userId     String
+  content    String
+  action     String   // comment, approved, rejected, requested_changes
+  createdAt  DateTime @default(now())
+
+  // Relations
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@map("approval_comments")
+}
+
+model ApprovalHistory {
+  id         String   @id @default(cuid())
+  approvalId String
+  userId     String
+  action     String   // created, submitted, approved, rejected, cancelled, etc.
+  details    String?  // JSON string with additional details
+  createdAt  DateTime @default(now())
+
+  // Relations
+  approval Approval @relation(fields: [approvalId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@map("approval_history")
+}
+
+// Knowledge Base / Wiki System
+model KnowledgeBase {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  workspaceId String
+  parentId    String?  // For hierarchical structure
+  isCategory  Boolean  @default(false)
+  icon        String?
+  color       String?
+  sortOrder   Int      @default(0)
+  isPublic    Boolean  @default(true)
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  workspace  Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent     KnowledgeBase? @relation("KnowledgeBaseHierarchy", fields: [parentId], references: [id])
+  children   KnowledgeBase[] @relation("KnowledgeBaseHierarchy")
+  articles   KnowledgeArticle[]
+  permissions KnowledgePermission[]
+  categoryArticles KnowledgeArticle[] @relation("ArticleCategory")
+
+  @@unique([workspaceId, name])
+
+  @@map("knowledge_bases")
+}
+
+model KnowledgeArticle {
+  id          String   @id @default(cuid())
+  title       String
+  content     String?
+  excerpt     String?
+  slug        String   @unique
+  status      String   @default("draft") // draft, published, archived
+  baseId      String
+  authorId    String
+  categoryId  String?
+  sortOrder   Int      @default(0)
+  isFeatured  Boolean  @default(false)
+  viewCount   Int      @default(0)
+  isPublic    Boolean  @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  base        KnowledgeBase       @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  category    KnowledgeBase?      @relation("ArticleCategory", fields: [categoryId], references: [id])
+  author      User                @relation(fields: [authorId], references: [id])
+  versions    KnowledgeVersion[]
+  comments    KnowledgeComment[]
+  attachments KnowledgeAttachment[]
+  permissions KnowledgePermission[]
+  articleTags KnowledgeArticleTag[]
+
+  @@unique([baseId, slug])
+
+  @@map("knowledge_articles")
+}
+
+model KnowledgeVersion {
+  id         String   @id @default(cuid())
+  articleId  String
+  version    Int
+  title      String
+  content    String
+  changelog  String?
+  authorId   String
+  createdAt  DateTime @default(now())
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author  User            @relation(fields: [authorId], references: [id])
+
+  @@unique([articleId, version])
+  @@map("knowledge_versions")
+}
+
+model KnowledgeComment {
+  id         String   @id @default(cuid())
+  articleId  String
+  userId     String
+  content    String
+  parentId   String?  // For threaded comments
+  isResolved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id])
+  parent  KnowledgeComment? @relation("CommentThread", fields: [parentId], references: [id])
+  replies KnowledgeComment[] @relation("CommentThread")
+
+  @@map("knowledge_comments")
+}
+
+model KnowledgeAttachment {
+  id        String   @id @default(cuid())
+  articleId String
+  fileId    String
+  name      String
+  size      Int
+  type      String
+  url       String
+  createdAt DateTime @default(now())
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_attachments")
+}
+
+model KnowledgeTag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  color     String   @default("#3b82f6")
+  articleTags KnowledgeArticleTag[]
+
+  @@map("knowledge_tags")
+}
+
+model KnowledgeArticleTag {
+  id       String @id @default(cuid())
+  articleId String
+  tagId    String
+
+  // Relations
+  article KnowledgeArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     KnowledgeTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, tagId])
+  @@map("knowledge_article_tags")
+}
+
+model KnowledgePermission {
+  id           String   @id @default(cuid())
+  baseId       String?
+  articleId    String?
+  userId       String?
+  roleId       String?
+  permission   String   // read, write, admin
+  createdAt    DateTime @default(now())
+
+  // Relations
+  base    KnowledgeBase?    @relation(fields: [baseId], references: [id], onDelete: Cascade)
+  article KnowledgeArticle? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@map("knowledge_permissions")
 }

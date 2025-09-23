@@ -12,6 +12,8 @@ import { ChannelManager } from "@/components/channels/ChannelManager";
 import { DocumentManager } from "@/components/documents/DocumentManager";
 import { TaskManager } from "@/components/tasks/TaskManager";
 import { CalendarManager } from "@/components/calendar/CalendarManager";
+import { KnowledgeManager } from "@/components/knowledge/KnowledgeManager";
+import { ApprovalManager } from "@/components/approvals/ApprovalManager";
 import { NotificationButton } from "@/components/notifications/NotificationButton";
 import { FileManager } from "@/components/files/FileManager";
 import { SearchButton } from "@/components/search/SearchButton";
@@ -21,15 +23,18 @@ import {
   MessageSquare, 
   Users, 
   FileText, 
+  CheckSquare as CheckSquareIcon, 
+  File, 
   Calendar, 
+  BookOpen,
   Settings, 
   Search,
   Plus,
   Bell,
   ChevronDown,
   MoreHorizontal,
-  LogOut,
-  CheckSquare
+  CheckCircle,
+  LogOut
 } from "lucide-react";
 
 interface FeishuLayoutProps {
@@ -41,9 +46,11 @@ const navigationItems = [
   { name: "Messages", icon: MessageSquare, href: "/messages" },
   { name: "Channels", icon: Users, href: "/channels" },
   { name: "Documents", icon: FileText, href: "/documents" },
-  { name: "Tasks", icon: CheckSquare, href: "/tasks" },
+  { name: "Tasks", icon: CheckSquareIcon, href: "/tasks" },
   { name: "Files", icon: File, href: "/files" },
   { name: "Calendar", icon: Calendar, href: "/calendar" },
+  { name: "Knowledge", icon: BookOpen, href: "/knowledge" },
+  { name: "Approvals", icon: CheckCircle, href: "/approvals" },
   { name: "Settings", icon: Settings, href: "/settings" },
 ];
 
@@ -388,6 +395,10 @@ export function FeishuLayout({ children }: FeishuLayoutProps) {
             <TaskManager workspaceId={selectedWorkspace.id} />
           ) : activeTab === "calendar" && selectedWorkspace ? (
             <CalendarManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "knowledge" && selectedWorkspace ? (
+            <KnowledgeManager workspaceId={selectedWorkspace.id} />
+          ) : activeTab === "approvals" && selectedWorkspace ? (
+            <ApprovalManager workspaceId={selectedWorkspace.id} />
           ) : (
             children
           )}
